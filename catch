@@ -10,26 +10,36 @@ copy_to_clipboard() {
     
     # Check if we're in WSL
     if grep -q -i microsoft /proc/version 2>/dev/null || grep -q -i wsl /proc/version 2>/dev/null; then
-        # Using Windows clip.exe from WSL
-        echo -n "$content" | clip.exe 2>/dev/null
+        # Using Windows clip.exe from WSL - needs CRLF line endings
+        printf "%s" "$content" | clip.exe 2>/dev/null
         if [ $? -eq 0 ]; then
+            echo "Using clip.exe" >&2
             return 0
         else
             # Try with PowerShell as an alternative in WSL
-            echo -n "$content" | powershell.exe -command "Set-Clipboard" 2>/dev/null
-            return $?
+            printf "%s" "$content" | powershell.exe -command '$input | Set-Clipboard' 2>/dev/null
+            if [ $? -eq 0 ]; then
+                echo "Using PowerShell" >&2
+                return 0
+            else
+                echo "Failed to copy to clipboard via clip.exe or PowerShell" >&2
+                return 1
+            fi
         fi
     elif command -v xclip >/dev/null 2>&1; then
         # Linux with xclip
-        echo -n "$content" | xclip -selection clipboard
+        printf "%s" "$content" | xclip -selection clipboard
+        echo "Using xclip" >&2
         return $?
     elif command -v xsel >/dev/null 2>&1; then
         # Linux with xsel as alternative
-        echo -n "$content" | xsel --clipboard --input
+        printf "%s" "$content" | xsel --clipboard --input
+        echo "Using xsel" >&2
         return $?
     elif command -v pbcopy >/dev/null 2>&1; then
         # macOS
-        echo -n "$content" | pbcopy
+        printf "%s" "$content" | pbcopy
+        echo "Using pbcopy" >&2
         return $?
     else
         echo "No clipboard utility found. For Linux, install xclip or xsel." >&2
@@ -103,10 +113,11 @@ OUTPUT_FILE="$1"
 shift
 
 # Run the command, redirecting both stdout and stderr to the file
-"$@" > "$OUTPUT_FILE" 2>&1
+# Also display output in real-time to the terminal
+"$@" 2>&1 | tee "$OUTPUT_FILE"
 
 # Store the exit code of the command
-EXIT_CODE=$?
+EXIT_CODE=${PIPESTATUS[0]}
 
 # Print a message indicating the command completed
 echo "Command '$*' completed with exit code $EXIT_CODE" >&2
@@ -114,10 +125,14 @@ echo "Output saved to $OUTPUT_FILE" >&2
 
 # Copy to clipboard if requested
 if [ "$CLIPBOARD" -eq 1 ]; then
-    if copy_to_clipboard "$(cat "$OUTPUT_FILE")"; then
-        echo "Output copied to clipboard" >&2
+    echo "Attempting to copy to clipboard..." >&2
+    if copy_to_clipboard "$(<"$OUTPUT_FILE")"; then
+        echo "Output copied to clipboard successfully" >&2
+    else
+        echo "Failed to copy to clipboard" >&2
     fi
 fi
 
 # Return the original exit code from the command
 exit $EXIT_CODE
+

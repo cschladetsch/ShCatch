@@ -40,7 +40,7 @@ catch -c results.txt grep "error" log.txt
 Clone this repository and add the script to your PATH, or create a symbolic link to it in a directory that's already in your PATH.
 
 ```bash
-git clone https://github.com/yourusername/BashCatch.git
+git clone https://github.com/cschladetsch/BashCatch.git
 cd BashCatch
 chmod +x catch
 ln -s "$(pwd)/catch" ~/bin/catch  # Assuming ~/bin is in your PATH
